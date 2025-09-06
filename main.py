@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.orm import sessionmaker, declarative_base
+import uvicorn
 
 app = FastAPI()
 
@@ -13,7 +14,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "https://ismt-frontend.vercel.app",
-        "https://mycontactapi123.azurewebsites.net"  # Replace with your actual Azure URL after deployment
+        "https://mycontactapi123.azurewebsites.net"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -21,7 +22,10 @@ app.add_middleware(
 )
 
 # Azure MySQL database setup
-DATABASE_URL = os.getenv("DATABASE_URL", "mysql+pymysql://trinav:Password123@trinav.mysql.database.azure.com:3306/contacts_db")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "mysql+pymysql://trinav:Password123@trinav.mysql.database.azure.com:3306/contacts_db"
+)
 engine = create_engine(
     DATABASE_URL,
     connect_args={"ssl": {"ssl_ca": "DigiCertGlobalRootCA.crt.pem"}}
@@ -53,12 +57,14 @@ def get_db():
     finally:
         db.close()
 
-# Root endpoint
 @app.get("/")
 def read_root():
     return {"message": "Welcome to my FastAPI backend!"}
 
-# Endpoint to save contact (POST)
+@app.get("/port")
+def read_port():
+    return {"port": os.environ.get("PORT")}
+
 @app.post("/api/contact")
 def create_contact(contact: ContactCreate, db=Depends(get_db)):
     db_contact = Contact(**contact.dict())
@@ -67,13 +73,12 @@ def create_contact(contact: ContactCreate, db=Depends(get_db)):
     db.refresh(db_contact)
     return {"message": "Contact saved successfully"}
 
-# Endpoint to get all contacts (GET)
 @app.get("/api/contacts")
 def get_contacts(db=Depends(get_db)):
     contacts = db.query(Contact).all()
     return [{"id": c.id, "name": c.name, "email": c.email, "message": c.message} for c in contacts]
 
-# ----- NEW: Debug endpoint to check Azure PORT -----
-@app.get("/port")
-def read_port():
-    return {"port": os.environ.get("PORT")}
+# --- Only add this for Azure deployment ---
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))  # Azure sets PORT env variable
+    uvicorn.run(app, host="0.0.0.0", port=port)
