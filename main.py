@@ -53,7 +53,7 @@ def get_db():
     finally:
         db.close()
 
-# Root endpoint (optional, added for completeness)
+# Root endpoint
 @app.get("/")
 def read_root():
     return {"message": "Welcome to my FastAPI backend!"}
@@ -72,3 +72,8 @@ def create_contact(contact: ContactCreate, db=Depends(get_db)):
 def get_contacts(db=Depends(get_db)):
     contacts = db.query(Contact).all()
     return [{"id": c.id, "name": c.name, "email": c.email, "message": c.message} for c in contacts]
+
+# ----- NEW: Debug endpoint to check Azure PORT -----
+@app.get("/port")
+def read_port():
+    return {"port": os.environ.get("PORT")}
