@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -6,17 +7,21 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 
 app = FastAPI()
 
-# Allow Next.js to connect (CORS)
+# Allow Next.js and Azure to connect (CORS)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://ismt-frontend.vercel.app"],  # Update with Vercel URL later
+    allow_origins=[
+        "http://localhost:3000",
+        "https://ismt-frontend.vercel.app",
+        "https://mycontactapi123.azurewebsites.net"  # Replace with your actual Azure URL after deployment
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Azure MySQL database setup
-DATABASE_URL = "mysql+pymysql://trinav:Password123@trinav.mysql.database.azure.com:3306/contacts_db"
+DATABASE_URL = os.getenv("DATABASE_URL", "mysql+pymysql://trinav:Password123@trinav.mysql.database.azure.com:3306/contacts_db")
 engine = create_engine(
     DATABASE_URL,
     connect_args={"ssl": {"ssl_ca": "DigiCertGlobalRootCA.crt.pem"}}
@@ -47,6 +52,11 @@ def get_db():
         yield db
     finally:
         db.close()
+
+# Root endpoint (optional, added for completeness)
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to my FastAPI backend!"}
 
 # Endpoint to save contact (POST)
 @app.post("/api/contact")
