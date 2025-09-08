@@ -93,3 +93,8 @@ def get_contacts(db=Depends(get_db)):
     except Exception as e:
         logger.error(f"Error retrieving contacts: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to retrieve contacts")
+
+
+
+
+# DATABASE_URL="mysql+pymysql://trinav@trinav:Password123@trinav.mysql.database.azure.com:3306/contacts_db?ssl_ca=/home/site/wwwroot/DigiCertGlobalRootCA.crt.pem" gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000
