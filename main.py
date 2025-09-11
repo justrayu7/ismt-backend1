@@ -1,6 +1,6 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.orm import sessionmaker, declarative_base
 from dotenv import load_dotenv
@@ -9,17 +9,19 @@ import os
 load_dotenv()
 app = FastAPI()
 
-# Allow Next.js to connect (CORS)
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://ismt-frontend.vercel.app"],  # Update with Vercel URL later
+    allow_origins=["http://localhost:3000", "https://ismt-frontend.vercel.app"],  # Update to ["https://ismt-frontend.vercel.app"] after deployment
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Azure MySQL database setup
-DATABASE_URL = "mysql+pymysql://trinav:Password123@trinav.mysql.database.azure.com:3306/contacts_db"
+DATABASE_URL = os.getenv("DATABASE_URL")  # Load from .env or Azure settings
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL not set in environment variables")
 engine = create_engine(
     DATABASE_URL,
     connect_args={"ssl": {"ssl_ca": "DigiCertGlobalRootCA.crt.pem"}}
@@ -37,11 +39,11 @@ class Contact(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# Pydantic model for input
+# Pydantic model for input with validation
 class ContactCreate(BaseModel):
-    name: str
-    email: str
-    message: str
+    name: str = Field(..., min_length=1, max_length=100)
+    email: EmailStr
+    message: str = Field(..., min_length=1, max_length=500)
 
 # Dependency for DB session
 def get_db():
@@ -51,14 +53,27 @@ def get_db():
     finally:
         db.close()
 
+# Root endpoint (optional, to avoid "Method Not Allowed")
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to the Contact API"}
+
 # Endpoint to save contact (POST)
 @app.post("/api/contact")
 def create_contact(contact: ContactCreate, db=Depends(get_db)):
+    # Check for duplicate email
+    existing_contact = db.query(Contact).filter(Contact.email == contact.email).first()
+    if existing_contact:
+        raise HTTPException(status_code=400, detail="Email already exists")
     db_contact = Contact(**contact.dict())
-    db.add(db_contact)
-    db.commit()
-    db.refresh(db_contact)
-    return {"message": "Contact saved successfully"}
+    try:
+        db.add(db_contact)
+        db.commit()
+        db.refresh(db_contact)
+        return {"message": "Contact saved successfully"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 # Endpoint to get all contacts (GET)
 @app.get("/api/contacts")
